@@ -1,6 +1,15 @@
 langchain
+langchain-core
 langchain-community
+langchain-text-splitters
+chromadb
+ollama
 langchain-ollama
-langchain-chroma
-fastapi
+tiktoken
+sentence-transformers
+gitpython
+fastap
 uvicorn
+python-dotenv
+rich
+langsmith
