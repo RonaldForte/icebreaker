@@ -1,21 +1,22 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
-from services.github_loader import load_github_repo
-from services.chunker import chunk_documents
-from services.rag_chain import get_rag_chain
+from app.services.github_loader import load_github_repo
+from app.services.vectordb_service import create_or_get_vectorstore
+from app.services.chunker import chunk_documents
+from app.services.rag_chain import get_rag_chain
 
 # 1. Load repo
-repo_url = "https://github.com/psf/requests"
-docs = load_github_repo(repo_url)
+repo_url = "https://github.com/RonaldForte/icebreaker"
+branch = "main"
+#docs = load_github_repo(repo_url)
 
 # 2. Chunk docs
-docs = chunk_documents(docs)
+#docs = chunk_documents(docs)
 
 # 3. Vector store
-vectorstore = Chroma.from_documents(
-    docs,
-    embedding=OllamaEmbeddings(model="nomic-embed-text")
-)
+"""
+"""
+vectorstore = create_or_get_vectorstore(repo_url, branch)
 
 retriever = vectorstore.as_retriever()
 

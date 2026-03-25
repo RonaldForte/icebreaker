@@ -1,10 +1,11 @@
 import hashlib
-from typing import Any
+import shutil
+import os
 
 from langchain_community.vectorstores import Chroma
-from langchain_core.documents import Document
+from langchain_community.document_loaders import GitLoader
 from langchain_ollama import OllamaEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from app.services.chunker import chunk_documents
 
 # This Service is full of functions that let our VectorDB work
 # Creating/Getting collections, ingesting data as vector embeddings, and searching the data
@@ -17,57 +18,38 @@ EMBEDDING_MODEL = OllamaEmbeddings(model="nomic-embed-text")
 # The Chroma store itself (which contains the collections)
 vector_store: dict[str, Chroma] = {}
 
-# Create a new collection in VectorDB - a collection in VDB is like a table in SQL.
-# If the collection already exists, just return it.
-def create_or_get_collection(collection_name:str):
+# Create a unique collection name based on the repo url and branch name (to avoid duplicates and mixing)
+def get_hashed_collection_name(repo_url: str, branch: str):
+    identifier = f"{repo_url}-{branch}"
+    return "repo_" + hashlib.md5(identifier.encode()).hexdigest()[:16]
 
-    # If the Collection doesn't already exist, make a new one
-    if collection_name not in vector_store:
-        vector_store[collection_name] = Chroma(
-            collection_name = collection_name,
-            persist_directory = PERSIST_DIRECTORY,
-            embedding_function = EMBEDDING_MODEL
-        )
+def create_or_get_vectorstore (repo_url, branch):
+    # 1. Generate the unique name
+    collection_name = get_hashed_collection_name(repo_url, branch)
+    temp_path = f"./temp/{collection_name}"
+    
+    # 2. Connect to Chroma (This points us to the right "folder")
+    vectorstore = Chroma(
+        collection_name=collection_name,
+        persist_directory="./chroma_db",
+        embedding_function=OllamaEmbeddings(model="nomic-embed-text")
+    )
 
-    return vector_store[collection_name]
+    # 3. If it's empty, we need to load and add the data
+    if vectorstore._collection.count() == 0:
+        try:
+            print(f"Ingesting {repo_url}...")
+            loader = GitLoader(clone_url=repo_url, repo_path=temp_path, branch=branch)
+            docs = loader.load()
+            chunks = chunk_documents(docs)
+            vectorstore.add_documents(chunks)
+            print("Ingestion complete.")
+        finally:
+            # DELETE the temp folder now that Chroma has the data
+            if os.path.exists(temp_path):
+                shutil.rmtree(temp_path)
+                print(f"Cleaned up temporary files at {temp_path}")
+    else:
+        print(f"Collection {collection_name} already exists with data. Skipping loader.")
 
-# Ingest JSON items into the DB
-def ingest_json(collection_name:str, items:list[dict[str, Any]]):
-
-    # Get an instance of the collection in the vector store
-    collection = create_or_get_collection(collection_name)
-
-    # Turn the list of items into a list of document to get ingested
-    docs = [
-        Document(page_content=item["text"], metadata=item.get("metadata", {}))
-        for item in items
-    ]
-
-    # Attach IDs to each document (easy cuz it's the sample data)
-    ids = [item["id"] for item in items]
-
-    # Add the documents, perform the ingestion, and we have embedded vectors!
-    collection.add_documents(docs, ids=ids)
-
-    # Return the length of the ingested items just for visibility
-    return len(items)
-
-
-
-# We will need to repurpose this, depending on what the collections are
-# Just pasted this here for now
-def search_collection(collection_name:str, query:str, k:int=5, game_title:str=None):
-
-    # Get the collection from the vector store
-    collection = create_or_get_collection(collection_name)
-
-    # Perform the similarity search
-    # (This is a Retriever, we're using it to retrieve data for the LLM's response)
-    results = (collection
-               .similarity_search_with_score(query,
-                k=k,
-                filter={"game_title": game_title} if game_title else None))
-
-    # NOTE: the filter is optional, and only comes into play if the user passes in a game title
-
-    return results
+    return vectorstore
