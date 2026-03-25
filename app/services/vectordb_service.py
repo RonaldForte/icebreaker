@@ -1,7 +1,7 @@
 import hashlib
 from typing import Any
 
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -65,8 +65,8 @@ def search_collection(collection_name:str, query:str, k:int=5, game_title:str=No
     # (This is a Retriever, we're using it to retrieve data for the LLM's response)
     results = (collection
                .similarity_search_with_score(query,
-                                            k=k,
-                                            filter={"game_title": game_title} if game_title else None))
+                k=k,
+                filter={"game_title": game_title} if game_title else None))
 
     # NOTE: the filter is optional, and only comes into play if the user passes in a game title
 
