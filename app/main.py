@@ -1,42 +1,28 @@
-from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_community.vectorstores import Chroma
-from app.services.github_loader import load_github_repo
-from app.services.vectordb_service import create_or_get_vectorstore
-from app.services.chunker import chunk_documents
-from app.services.rag_chain import get_rag_chain
+from dotenv import load_dotenv
+from app.graph.workflow import app
 
-# 1. Load repo
-repo_url = "https://github.com/RonaldForte/icebreaker"
-branch = "main"
-#docs = load_github_repo(repo_url)
+load_dotenv()
 
-# 2. Chunk docs
-#docs = chunk_documents(docs)
+REPO_URL = "https://github.com/RonaldForte/icebreaker.git"
+BRANCH_NAME = "dev_amit"
 
-# 3. Vector store
-"""
-"""
-vectorstore = create_or_get_vectorstore(repo_url, branch)
+def run_assistant():
+    print("Git RAG Assistant (LangGraph) - Type 'exit' to quit.")
+    while True:
+        user_query = input("\nUser: ")
+        if user_query.lower() == "exit":
+            break
+            
+        inputs = {
+            "query": user_query,
+            "repo_url": REPO_URL,
+            "branch": BRANCH_NAME
+        }
+        # Run the graph synchronously
+        result = app.invoke(inputs)
+        
+        print(f"\n[Filters applied: Branch={result['branch']}, File={result['filename']}]")
+        print(f"Assistant: {result['answer']}")
 
-retriever = vectorstore.as_retriever()
-
-# 4. LLM
-llm = ChatOllama(
-    model="llama3.2:3b",
-    temperature=0.5
-)
-
-# 5. Chain
-chain = get_rag_chain(llm, retriever)
-
-
-while True:
-    question = input("\nAsk a question (or type 'exit'): ")
-
-    if question.lower() == "exit":
-        print("Goodbye 👋")
-        break
-
-    response = chain.invoke(question)
-
-    print("\nAnswer:\n", response.content)
+if __name__ == "__main__":
+    run_assistant()
