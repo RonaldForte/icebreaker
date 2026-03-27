@@ -1,67 +1,68 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.services.github_loader import load_github_repo
-from app.services.chunker import chunk_documents
+from typing import Optional
+import os
+
 from app.services.vectordb_service import (
+    create_or_get_collection,
     ingest_documents,
-    get_retriever,
-    search_collection
+    search_collection,
 )
-from app.services.rag_chain import get_rag_chain
-from app.services.langchain_service import llm
+from app.services.github_loader import load_github_repo
 
-router = APIRouter(prefix="/vectordb", tags=["VectorDB"])
+router = APIRouter()
 
-retriever = None
-rag_chain = None
-current_collection = None
-
-
-class QueryRequest(BaseModel):
-    question: str
-
-
-class RepoRequest(BaseModel):
+class RepoLoadRequest(BaseModel):
     repo_url: str
 
+class RAGQueryRequest(BaseModel):
+    question: str
+    collection_name: Optional[str] = None
 
-def check_repo_loaded():
-    return retriever is not None and rag_chain is not None
+class SearchRequest(BaseModel):
+    question: str
+    collection_name: Optional[str] = None
+    
+    
+@router.post("/vectordb/load-repo")
+def load_repo(request: RepoLoadRequest):
+    try:
+        documents = load_github_repo(request.repo_url)
 
+        if not documents:
+            return {"message": "No documents found in repo."}
 
-@router.post("/load-repo")
-def load_repo(request: RepoRequest):
-    global retriever, rag_chain, current_collection
+        repo_name = os.path.basename(request.repo_url).replace(".git", "")
+        collection = create_or_get_collection(repo_name)
 
-    repo_name = request.repo_url.rstrip("/").split("/")[-1]
-    current_collection = repo_name
+        items = [
+            {"id": str(i), "text": doc.page_content, "metadata": doc.metadata}
+            for i, doc in enumerate(documents)
+        ]
+        ingest_documents(repo_name, items)
 
-    docs = load_github_repo(request.repo_url)
-    docs = chunk_documents(docs)
+        return {"message": f"Repository loaded and ingested into collection '{repo_name}'."}
 
-    ingest_documents(current_collection, docs)
-
-    retriever = get_retriever(current_collection)
-    rag_chain = get_rag_chain(llm, retriever)
-
-    return {
-        "message": f"Repository '{repo_name}' loaded successfully!",
-        "documents_ingested": len(docs)
-    }
-
-
-@router.post("/rag-query")
-def rag_query(request: QueryRequest):
-    if not check_repo_loaded():
-        return {"error": "No repo loaded yet."}
-
-    response = rag_chain.invoke(request.question)
-    return {"answer": response.content}
-
-
-@router.post("/search")
-def search(request: QueryRequest):
-    if current_collection is None:
-        return {"error": "No repo loaded yet."}
-
-    return search_collection(current_collection, request.question)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/vectordb/search")
+def search(request: SearchRequest):
+    try:
+        collection_name = request.collection_name
+        if not collection_name:
+            raise HTTPException(status_code=400, detail="Collection name is required.")
+        results = search_collection(collection_name, request.question, k=5)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/vectordb/rag-query")
+def rag_query(request: RAGQueryRequest):
+    try:
+        collection_name = request.collection_name or "main_repo"
+        results = search_collection(collection_name, request.question, k=5)
+        answer = results[0]["content"] if results else "No relevant documents found."
+        return {"answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
