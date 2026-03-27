@@ -41,10 +41,18 @@ def retriever_node(state: AgentState):
     vectorstore = create_or_get_vectorstore(state["repo_url"], state["branch"])
     
     search_filter = None
+    """
     if state.get("filename"):
+        print("\nWe got a filename inside retriever node\n")
         search_filter = {"source": {"$contains": state["filename"]}}
-
+    """
+    
     docs = vectorstore.similarity_search(state["query"], k=5, filter=search_filter)
+
+    print(f"\nHere are the docs we got inside retriever node:\n{docs}")
+
+    print(f"Here is a single document's page_content:\n{docs[3].page_content}")
+
     return {"context": [d.page_content for d in docs]}
 
 def generation_node(state: AgentState):
@@ -70,6 +78,9 @@ def generation_node(state: AgentState):
     # 3. Run the chain
     chain = prompt | llm
     response = chain.invoke({"query": state["query"], "context": context_text})
+
+
+    print(f"\nContext: {state["context"]}\n\n\n")
     
     # 4. Update the state with the REAL answer
-    return {"answer": response}
+    return {"answer": response.content}
