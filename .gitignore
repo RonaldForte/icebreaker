@@ -1,1 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv311/
+.env
+
+# Local Chroma DB
+app/chroma_db/
+
+# Cloned GitHub repo
 repo/
+
+# IDE / editor files
+.vscode/
+.idea/
+*.swp

@@ -15,19 +15,9 @@ def get_rag_chain(llm, retriever):
 
     Instructions:
     - Be precise
-    - If possible, mention file names from metadata
-    - If the answer is not in the context, say that clearly
+    - Mention file names from metadata if possible
+    - If answer is not in context, say so
 
     Answer:
     """)
-
-    chain = (
-        {
-            "context": retriever,
-            "question": RunnablePassthrough()
-        }
-        | prompt
-        | llm
-    )
-
-    return chain
+    return ({"context": retriever, "question": RunnablePassthrough()} | prompt | llm)
