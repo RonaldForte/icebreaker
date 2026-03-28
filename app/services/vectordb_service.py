@@ -11,6 +11,9 @@ vector_store: dict[str, Chroma] = {}
 
 
 def create_or_get_collection(collection_name: str) -> Chroma:
+    if not collection_name:
+        raise ValueError("Collection name cannot be None or empty")
+
     if collection_name not in vector_store:
         vector_store[collection_name] = Chroma(
             collection_name=collection_name,
@@ -23,13 +26,25 @@ def create_or_get_collection(collection_name: str) -> Chroma:
 def ingest_documents(collection_name: str, documents: list[Document]) -> int:
     collection = create_or_get_collection(collection_name)
 
-    ids = [
-        hashlib.md5(doc.page_content.encode()).hexdigest() #take text -> convert to bytes(.encode) -> hashing algorithm (md5) -> readable string (hexdigest) -> store as ID
-        for doc in documents
-    ]
+    texts = []
+    metadatas = []
 
-    collection.add_documents(documents, ids=ids)
-    return len(documents)
+    for doc in documents:
+        if not doc.page_content or not doc.page_content.strip():
+            continue
+
+        texts.append(doc.page_content)
+        metadatas.append(doc.metadata or {})
+
+    if not texts:
+        raise ValueError("No valid documents to ingest")
+
+    collection.add_texts(
+        texts=texts,
+        metadatas=metadatas
+    )
+
+    return len(texts)
 
 
 def get_retriever(collection_name: str, k: int = 5):

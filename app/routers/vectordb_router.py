@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from app.services.langchain_service import llm
 import os
 
+from langchain_core.documents import Document
 from app.services.vectordb_service import (
     create_or_get_collection,
     ingest_documents,
@@ -22,8 +24,8 @@ class RAGQueryRequest(BaseModel):
 class SearchRequest(BaseModel):
     question: str
     collection_name: Optional[str] = None
-    
-    
+
+
 @router.post("/vectordb/load-repo")
 def load_repo(request: RepoLoadRequest):
     try:
@@ -33,19 +35,19 @@ def load_repo(request: RepoLoadRequest):
             return {"message": "No documents found in repo."}
 
         repo_name = os.path.basename(request.repo_url).replace(".git", "")
-        collection = create_or_get_collection(repo_name)
+        create_or_get_collection(repo_name)
 
-        items = [
-            {"id": str(i), "text": doc.page_content, "metadata": doc.metadata}
-            for i, doc in enumerate(documents)
-        ]
-        ingest_documents(repo_name, items)
+        ingested_count = ingest_documents(repo_name, documents)
 
-        return {"message": f"Repository loaded and ingested into collection '{repo_name}'."}
+        return {
+            "message": f"Repository loaded and ingested into collection '{repo_name}'.",
+            "documents_ingested": ingested_count
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
 @router.post("/vectordb/search")
 def search(request: SearchRequest):
     try:
@@ -56,13 +58,34 @@ def search(request: SearchRequest):
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
 @router.post("/vectordb/rag-query")
 def rag_query(request: RAGQueryRequest):
     try:
         collection_name = request.collection_name or "main_repo"
         results = search_collection(collection_name, request.question, k=5)
-        answer = results[0]["content"] if results else "No relevant documents found."
-        return {"answer": answer}
+
+        if not results:
+            return {"answer": "No relevant documents found."}
+
+        context = "\n\n".join([r["content"] for r in results])
+
+        prompt = f"""
+        You are a software onboarding assistant.
+
+        Use the context below to answer the question.
+
+        Context:
+        {context}
+
+        Question:
+        {request.question}
+        """
+
+        response = llm.invoke(prompt)
+
+        return {"answer": response.content}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
