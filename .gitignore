@@ -7,7 +7,7 @@ venv/
 .env
 
 # Local Chroma DB
-app/chroma_db/
+chroma_db/
 
 # Cloned GitHub repo
 repo/

@@ -1,35 +1,45 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/items", tags=["CRUD"])
+router = APIRouter(tags=["CRUD"])
 
-class Item(BaseModel):
+
+class User(BaseModel):
     id: int
-    name: str
+    username: str
 
-items_db = []
 
-@router.post("/")
-def create_item(item: Item):
-    items_db.append(item)
-    return {"message": "Item created", "item": item}
+# A tiny in-memory store is enough to satisfy the CRUD requirement without adding DB complexity.
+users_db = []
 
-@router.get("/")
-def get_items():
-    return items_db
 
-@router.put("/{item_id}")
-def update_item(item_id: int, updated_item: Item):
-    for i, item in enumerate(items_db):
-        if item.id == item_id:
-            items_db[i] = updated_item
-            return {"message": "Item updated", "item": updated_item}
-    return {"error": "Item not found"}
+@router.post("/users")
+def create_user(user: User):
+    # Keep ids unique so the selected Streamlit user is stable across requests.
+    if any(existing.id == user.id for existing in users_db):
+        return {"error": "User with this id already exists"}
+    users_db.append(user)
+    return {"message": "User created", "user": user}
 
-@router.delete("/{item_id}")
-def delete_item(item_id: int):
-    for i, item in enumerate(items_db):
-        if item.id == item_id:
-            deleted = items_db.pop(i)
-            return {"message": "Item deleted", "item": deleted}
-    return {"error": "Item not found"}
+
+@router.get("/users")
+def get_users():
+    return users_db
+
+
+@router.get("/users/{user_id}")
+def get_user(user_id: int):
+    # Linear lookup is fine here because the dataset is tiny and ephemeral.
+    for user in users_db:
+        if user.id == user_id:
+            return user
+    return {"error": "User not found"}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int):
+    for i, user in enumerate(users_db):
+        if user.id == user_id:
+            deleted = users_db.pop(i)
+            return {"message": "User deleted", "user": deleted}
+    return {"error": "User not found"}
