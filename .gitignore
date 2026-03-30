@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 
 # Virtual environment
-venv311/
+venv/
 .env
 
 # Local Chroma DB

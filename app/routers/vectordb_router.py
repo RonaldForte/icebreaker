@@ -13,6 +13,7 @@ from app.services.vectordb_service import (
 from app.services.github_loader import load_github_repo
 
 router = APIRouter()
+active_collection: Optional[str] = None
 
 class RepoLoadRequest(BaseModel):
     repo_url: str
@@ -28,6 +29,7 @@ class SearchRequest(BaseModel):
 
 @router.post("/vectordb/load-repo")
 def load_repo(request: RepoLoadRequest):
+    global active_collection
     try:
         documents = load_github_repo(request.repo_url)
 
@@ -36,6 +38,7 @@ def load_repo(request: RepoLoadRequest):
 
         repo_name = os.path.basename(request.repo_url).replace(".git", "")
         create_or_get_collection(repo_name)
+        active_collection = repo_name
 
         ingested_count = ingest_documents(repo_name, documents)
 
@@ -63,7 +66,12 @@ def search(request: SearchRequest):
 @router.post("/vectordb/rag-query")
 def rag_query(request: RAGQueryRequest):
     try:
-        collection_name = request.collection_name or "main_repo"
+        collection_name = request.collection_name or active_collection
+        if not collection_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Collection name is required. Load a repo first or provide collection_name."
+            )
         results = search_collection(collection_name, request.question, k=5)
 
         if not results:

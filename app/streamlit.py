@@ -16,7 +16,9 @@ if "active_collection" not in st.session_state:
 # CRUD PLACEHOLDER
 # ---------------------------------------------------
 st.header("Items CRUD (Placeholder)")
-st.info("These endpoints exist as per project requirements, but we won't use them in the demo.")
+st.info(
+    "These endpoints exist as per project requirements, but we won't use them in the demo."
+)
 
 if st.button("View Items (GET)"):
     try:
@@ -43,7 +45,7 @@ if st.button("Load Repo"):
                 response = requests.post(
                     f"{API_URL}/vectordb/load-repo",
                     json={"repo_url": repo_url},
-                    timeout=120  # increase for large repos
+                    timeout=120,  # increase for large repos
                 )
 
             result = response.json()
@@ -53,10 +55,14 @@ if st.button("Load Repo"):
             st.success(f"{message} ({documents_ingested} docs ingested)")
 
             # Set the active collection
-            st.session_state.active_collection = repo_url.split("/")[-1].replace(".git", "")
+            st.session_state.active_collection = repo_url.split("/")[-1].replace(
+                ".git", ""
+            )
 
         except requests.exceptions.Timeout:
-            st.error("Loading the repository timed out. Try a smaller repo or increase the timeout.")
+            st.error(
+                "Loading the repository timed out. Try a smaller repo or increase the timeout."
+            )
         except Exception as e:
             st.error(f"Error loading repo: {e}")
     else:
@@ -80,9 +86,9 @@ if st.button("Ask RAG Query"):
                     f"{API_URL}/vectordb/rag-query",
                     json={
                         "question": rag_question,
-                        "collection_name": st.session_state.active_collection
+                        "collection_name": st.session_state.active_collection,
                     },
-                    timeout=60
+                    timeout=60,
                 )
             data = response.json()
             answer = data.get("answer") if isinstance(data, dict) else str(data)
@@ -97,7 +103,7 @@ st.header("Semantic Search (No LLM)")
 search_query = st.text_input("Search Code", key="search_query")
 collection_name_input = st.text_input(
     "Collection Name (usually repo name, optional if you've loaded a repo)",
-    key="collection_name"
+    key="collection_name",
 )
 
 if st.button("Search"):
@@ -112,8 +118,11 @@ if st.button("Search"):
                 with st.spinner("Searching..."):
                     response = requests.post(
                         f"{API_URL}/vectordb/search",
-                        json={"question": search_query, "collection_name": collection_name},
-                        timeout=60
+                        json={
+                            "question": search_query,
+                            "collection_name": collection_name,
+                        },
+                        timeout=60,
                     )
                 results = response.json()
                 if isinstance(results, list) and results:
@@ -140,9 +149,16 @@ if st.button("Send Chat"):
                 response = requests.post(
                     f"{API_URL}/langchain/memory-chat",
                     json={"input": chat_input},
-                    timeout=60
+                    timeout=60,
                 )
             data = response.json()
-            st.write(data.get("output") if isinstance(data, dict) else str(data))
+            if isinstance(data, dict):
+                st.write(
+                    data.get("output")
+                    or data.get("response")
+                    or "No response returned."
+                )
+            else:
+                st.write(str(data))
         except Exception as e:
             st.error(f"Error: {e}")
